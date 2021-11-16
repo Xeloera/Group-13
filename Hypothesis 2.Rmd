@@ -107,11 +107,10 @@ str(anxiety_level)
 summary(anxiety_level)  
 
 anxiety_level <- anxiety_level %>%
-  mutate(native = dplyr::recode(native, "1" = "Yes", "2" = "No"), native = as.factor(native)) %>%
-  pivot_longer(anxiety_1:anxiety_5, "Question",values_to = "Response")
+  mutate(native = dplyr::recode(native, "1" = "Yes", "2" = "No"), native = as.factor(native)) 
 
 str(anxiety_level)
-summary(anxiety_level)    
+summary(anxiety_level)
 ```
 
 #### 7. Calculate the mean score for each participant for each sub-scale. There are a few ways you can do this but helpfully the Experimentum documentation provides example code to make this easier, you just need to adapt it for the variables you need. You may also want to change the `na.rm = TRUE` for the calculation of means depending on whether you want to only include participants who completed all questions.
@@ -122,7 +121,8 @@ At the top of the code chunk below, change `eval = FALSE` to `eval = TRUE` once 
 #Summary of count, mean and SD of the selected samples
 ```{r eval = TRUE}
 dat_summary <- anxiety_level %>%
-  group_by(native, Question) %>% 
+  pivot_longer(anxiety_1:anxiety_5, "Questions", values_to = "Response") %>%
+  group_by(native, Questions) %>% 
   summarise(count= n(),
             anxiety_mean = mean(Response, na.rm = TRUE), 
             anxiety_sd = sd(Response,na.rm = TRUE) ) %>%
@@ -137,11 +137,21 @@ T-test visualisation
 
 ```{r}
 #Violin Plot and Box Plot Showing Distributions
+sample_anxiety_level_mean <- anxiety_level %>%
+  pivot_longer(anxiety_1:anxiety_5, "Questions", values_to = "Response") %>%
+  group_by(user_id) %>%
+  summarise(anxiety_mean = mean (Response, na.rm = TRUE)) 
+
+anxiety_level<-inner_join(anxiety_level, 
+                          sample_anxiety_level_mean, 
+                          "user_id")
+
+
 anxiety_level %>%
-  ggplot(aes(x = native, y = Response, fill = native)) +
+  ggplot(aes(x = native, y = anxiety_mean, fill = native)) +
   geom_violin(trim = FALSE, show.legend = FALSE, alpha = .4) +
   geom_boxplot (width = .2, show.legend = FALSE) +
-  labs (x = "Category", y = "Score") +
+  labs (x = "Category", y = "Mean_score") +
   scale_x_discrete(labels = c("Native", "Non-native")) + 
   theme_minimal() 
 
@@ -169,22 +179,25 @@ T-test assumptions
 ```{r}
 native_residuals <- anxiety_level %>%
   filter(native == "Yes") %>%
+  pivot_longer(anxiety_1:anxiety_5, "Questions", values_to = "Response") %>%
   mutate (residual = Response - mean(Response, na.rm = TRUE)) %>%
   select(residual)
 
 qqPlot(native_residuals$residual)
+
 ```
 
 #Normality Test of Non-native Group by QQ Plot Visualiztion
 ```{r}
 non_native_residuals <- anxiety_level %>% 
   filter(native == "No") %>%
+  pivot_longer(anxiety_1:anxiety_5, "Questions", values_to = "Response") %>%
   mutate (residual = Response - mean(Response, na.rm = TRUE)) %>%
   select(residual)
 
-qqPlot (non_native_residuals$residual) 
+qqPlot (non_native_residuals$residual)
+ 
 ```
-
 
 
 Correlation assumptions
@@ -199,20 +212,30 @@ Correlation assumptions
 T-test analysis
 
 ```{r}
+
+#t-test
 t_result <- t.test(anxiety_mean~native,
        paired = FALSE,
        data = dat_summary,
        alternative = "greater") %>%
   tidy ()
-  
-  #power analysis
-  pwr.t.test(d = .2,
+
+#Power_test_for_sample_size
+library(pwr)
+library(tidyverse)
+
+
+group_min_sample_size <- pwr.t.test(d = .2,
            power = .8,
            sig.level = .05,
            alternative = "greater",
-           type = "two.sample")
+           type = "two.sample") %>%
+  pluck("n") %>%
+  ceiling() 
 
+  
 ```
+
 
 
 
