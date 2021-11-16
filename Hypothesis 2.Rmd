@@ -217,7 +217,7 @@ T-test analysis
 #t-test
 t_result <- t.test(anxiety_mean~native,
        paired = FALSE,
-       data = dat_summary,
+       data = anxiety_level,
        alternative = "greater") %>%
   tidy ()
 
