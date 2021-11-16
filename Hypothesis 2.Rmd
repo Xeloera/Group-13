@@ -151,10 +151,11 @@ anxiety_level %>%
   ggplot(aes(x = native, y = anxiety_mean, fill = native)) +
   geom_violin(trim = FALSE, show.legend = FALSE, alpha = .4) +
   geom_boxplot (width = .2, show.legend = FALSE) +
+  stat_summary(geom = "pointrange", fun.data = "mean_cl_normal", show.legend = FALSE) +
   labs (x = "Category", y = "Mean_score") +
   scale_x_discrete(labels = c("Native", "Non-native")) + 
   theme_minimal() 
-
+  
 #Bar Chart Counting Two Groups
 anxiety_level %>%
   ggplot(aes(x = native, fill = native)) +
