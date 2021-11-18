@@ -1,0 +1,394 @@
+---
+title: "Pre-registration for Group [insert group number]"
+author: "1234567, 2345678, 3456789, 4567890, 09887653, 9876543" #replace with GUIDS 
+output: word_document
+---
+
+#	1. What are the main hypotheses being tested in this study? Provide a concise rationale.
+
+
+
+# 2. Describe the key variables specifying how they will be measured, how many levels they have and how participants will be assigned (if relevant).
+
+
+
+# 3. Describe your precise rule(s) for excluding observations and/or participants.
+
+
+
+# 4. Describe exactly which inferential analyses you will conduct to examine the main hypotheses, including details of any assumption tests.
+
+
+
+# 5. How many observations will be collected or what will determine sample size/statistical power? 
+
+
+
+# References
+
+
+# Analysis code
+
+This template assumes that you will be running one t-test and a correlation, if you have decided to do something more complex then this template may not fit your needs. Some of the code has been completed for you to clean up the raw questionnaire output from Experimentum. Remember to knit the file after each step, it will make it easy to spot if you have made an error.
+
+Finally, remember that the pilot data is a small sample compared to the larger dataset that you will work with for the full quantitative report. There may be missing data or types of participants in the full data set that aren't present in this sample.
+
+**You can delete the above instructions before you knit and submit your final pre-reg**
+
+#### 1. Load in packages and data
+
+```{r}
+library(Hmisc)
+library(broom)
+library(car)
+library(effectsize)
+library(pwr)
+library(GGally)
+library(correlation)
+library(report)
+library(psych)
+library(corrplot)
+library(tidyverse)
+
+# you will need to add extra packages in here to do the rest of your analyses
+
+demo <- read_csv("demographics_2021_pilot.csv")
+mslq <- read_csv("MSLQ_2021_pilot.csv")
+```
+
+#### 2. Clean up the data
+
+Run the below code - don't change anything. This code will clean up the Experimentum data a little bit to help you on your way. 
+
+```{r}
+demo_final <- demo %>% 
+  group_by(user_id, q_id) %>% 
+  filter(session_id == min(session_id), endtime == min(endtime)) %>% 
+  filter(row_number() == 1) %>% 
+  ungroup() %>% 
+  filter(user_status %in% c("guest", "registered")) %>%
+  select(user_id, user_sex, user_age, q_name, dv) %>%
+  pivot_wider(names_from = q_name, values_from = dv)
+
+mslq_final <- mslq %>% 
+  group_by(user_id, q_id) %>% 
+  filter(session_id == min(session_id), endtime == min(endtime)) %>% 
+  filter(row_number() == 1) %>% 
+  ungroup() %>% 
+  filter(user_status %in% c("guest", "registered")) %>%
+  select(user_id, user_sex, user_age, q_name, dv) %>%
+  arrange(q_name) %>%
+  pivot_wider(names_from = q_name, values_from = dv)
+
+```
+
+#### 3. Join together the data files by their common columns
+
+```{r}
+combine_data <- inner_join(demo_final, mslq_final, "user_id")
+```
+
+#### 4. Use select to retain only the variables you need for your chosen research design (including the user ID).
+
+```{r}
+native_anxiety_level <- select(combine_data, user_id, native, anxiety_1, anxiety_2, anxiety_3, anxiety_4, anxiety_5)
+
+anxiety_level <- select(combine_data, user_id, anxiety_1, anxiety_2, anxiety_3, anxiety_4, anxiety_5)
+
+peer_level <- select(combine_data, user_id, peer_1,peer_2,peer_3)
+```
+
+#### 5. If necessary, use filter to retain only the observations you need, for example, you might need to delete participants above a certain age, or only use mature students etc.
+
+```{r}
+native_anxiety_level <- native_anxiety_level %>%
+  filter(!is.na (anxiety_1)) %>%
+  filter(!is.na (anxiety_2)) %>%
+  filter(!is.na (anxiety_3)) %>%
+  filter(!is.na (anxiety_4)) %>%
+  filter(!is.na (anxiety_5))
+
+combinifilter <- combine_data%>% filter(!is.na(anxiety_1))%>% #to remove all variable inconsistencies
+  filter(!is.na(anxiety_2))%>%
+  filter(!is.na(anxiety_3))%>%
+  filter(!is.na(anxiety_4))%>%
+  filter(!is.na(anxiety_5))%>%
+  filter(!is.na(peer_1))%>%
+  filter(!is.na(peer_2))%>%
+  filter(!is.na(peer_3))%>%
+  select(user_id, 
+         anxiety_1:anxiety_5, 
+         peer_1:peer_3)
+
+anxiety_level <- combinifilter %>% select(user_id, anxiety_1:anxiety_5)
+
+peer_level <- combinifilter%>%select(user_id, peer_1:peer_3)
+
+
+```
+
+#### 6. Use `summary` or `str` to check what type of variable each variable is. Recode any necessary variables as factors and, if you would like to, change numeric codes (e.g., 1 for native speaker) into words to make it easier to read the output. 
+
+```{r}
+str(native_anxiety_level)
+summary(native_anxiety_level)  
+
+native_anxiety_level <- native_anxiety_level %>%
+  mutate(native = dplyr::recode(native, "1" = "Yes", "2" = "No"), native = as.factor(native)) 
+
+str(native_anxiety_level)
+summary(native_anxiety_level)
+
+str(peer_level)
+summary(peer_level)  
+peer_level <- peer_level %>%
+  pivot_longer(peer_1:peer_3, "Question", values_to = "Response")
+
+str(peer_level)
+summary(peer_level)  
+
+str(anxiety_level)
+summary(anxiety_level)  
+anxiety_level <- anxiety_level %>%
+  pivot_longer(anxiety_1:anxiety_5, "Question",values_to = "Response")
+str(anxiety_level)
+summary(anxiety_level)  
+
+```
+
+#### 7. Calculate the mean score for each participant for each sub-scale. There are a few ways you can do this but helpfully the Experimentum documentation provides example code to make this easier, you just need to adapt it for the variables you need. You may also want to change the `na.rm = TRUE` for the calculation of means depending on whether you want to only include participants who completed all questions.
+
+At the top of the code chunk below, change `eval = FALSE` to `eval = TRUE` once you have amended your code. The reason it is currently set to FALSE is to allow the file to knit.
+
+
+#Summary of count, mean and SD of the selected samples
+```{r eval = TRUE}
+dat_summary <- native_anxiety_level %>%
+  pivot_longer(anxiety_1:anxiety_5, "Questions", values_to = "Response") %>%
+  group_by(native, Questions) %>% 
+  summarise(count= n(),
+            native_anxiety_mean = mean(Response, na.rm = TRUE), 
+            native_anxiety_sd = sd(Response,na.rm = TRUE) ) %>%
+  ungroup()
+
+var_sum <- combinifilter %>% 
+  gather(var, val, anxiety_1:anxiety_5) %>%  
+  group_by_at(vars(-val, -var)) %>% 
+  summarise(
+    anxiety_mean = mean(val, na.rm = TRUE),
+    anxiety_sd = sd(val, na.rm = TRUE)) %>% 
+  ungroup() %>%
+  gather(var, val, peer_1:peer_3,) %>% 
+  group_by_at(vars(-val, -var)) %>% 
+  summarise(
+    peer_mean = mean(val, na.rm = TRUE),
+    peer_sd = sd(val, na.rm = TRUE))
+   
+
+    total_anxiety_mean = mean(var_sum$anxiety_mean)
+    total_anxiety_sd = mean(var_sum$anxiety_sd)
+    total_peer_mean = mean(var_sum$peer_mean) 
+    total_peer_sd = mean(var_sum$peer_sd)
+    sample_size = as.integer(nrow(var_sum))
+    
+```
+
+
+#### 8. Now you have the dataset in the format that you need for analysis (you could actually combine all of the above steps together in one mega pipe-line of code, but only do that if you're feeling confident). Next, you should visualise the data for each analysis.
+
+T-test visualisation
+
+
+```{r}
+#Violin Plot and Box Plot Showing Distributions
+sample_native_anxiety_level_mean <- native_anxiety_level %>%
+  pivot_longer(anxiety_1:anxiety_5, "Questions", values_to = "Response") %>%
+  group_by(user_id) %>%
+  summarise(native_anxiety_mean = mean (Response, na.rm = TRUE)) 
+
+native_anxiety_level<-inner_join(native_anxiety_level, 
+                          sample_native_anxiety_level_mean, 
+                          "user_id")
+
+
+native_anxiety_level %>%
+  ggplot(aes(x = native, y = native_anxiety_mean, fill = native)) +
+  geom_violin(trim = FALSE, show.legend = FALSE, alpha = .4) +
+  geom_boxplot (width = .2, show.legend = FALSE) +
+  stat_summary(geom = "pointrange", fun.data = "mean_cl_normal", show.legend = FALSE) +
+  labs (x = "Category", y = "Mean_score") +
+  scale_x_discrete(labels = c("Native", "Non-native")) + 
+  theme_minimal() 
+  
+#Bar Chart Counting Two Groups
+native_anxiety_level %>%
+  ggplot(aes(x = native, fill = native)) +
+  geom_bar (show.legend = FALSE) +
+  labs (x = "Category", y = "Count") +
+  scale_x_discrete(labels = c("Native", "Non-native")) + 
+  theme_minimal() 
+```
+
+
+Correlation visualisation
+
+```{r}
+var_sum %>%
+  mutate(anxiety_mean = as.factor(anxiety_mean),
+    pear_mean = as.factor(peer_mean))
+         ggplot(var_sum, aes(x = anxiety_mean, fill = anxiety_mean)) +
+         geom_bar(show.legend = FALSE) +
+         scale_x_discrete(name = "Mean Anxiety Score") +
+         scale_y_continuous(name = "Number of participants")
+
+
+ggplot(var_sum, aes(x = peer_mean, fill = peer_mean)) +
+  geom_bar(show.legend = FALSE) +
+  scale_x_discrete(name = "Mean Peer Score") +
+  scale_y_continuous(name = "Number of participants")
+
+#The Violin-boxplot
+ggplot(var_sum, aes(x = anxiety_mean, 
+                        y = peer_mean, 
+                        fill = peer_mean)) +
+  geom_violin(trim = FALSE, 
+              show.legend = FALSE, 
+              alpha = .4) +
+  geom_boxplot(width = .2, 
+               show.legend = FALSE, 
+               alpha = .7)+
+  scale_x_discrete(name = "Mean Anxiety Score") +
+  scale_y_continuous(name = "Mean Peer Score")+
+  theme_minimal() +
+  scale_fill_viridis_d()
+
+var_sum %>%
+  select(anxiety_mean, peer_mean) %>%
+  pairs.panels(ellipses = FALSE, 
+               lm = TRUE, 
+               method = "pearson")
+```
+
+
+#### 9. Now you should check that the data meets the assumptions of the tests you want to conduct.
+
+T-test assumptions
+#Normality Test of Native Group by QQ Plot Visualiztion
+```{r}
+native_residuals <- native_anxiety_level %>%
+  filter(native == "Yes") %>%
+  pivot_longer(anxiety_1:anxiety_5, "Questions", values_to = "Response") %>%
+  mutate (residual = Response - mean(Response, na.rm = TRUE)) %>%
+  select(residual)
+
+qqPlot(native_residuals$residual)
+
+```
+
+#Normality Test of Non-native Group by QQ Plot Visualiztion
+```{r}
+non_native_residuals <- native_anxiety_level %>% 
+  filter(native == "No") %>%
+  pivot_longer(anxiety_1:anxiety_5, "Questions", values_to = "Response") %>%
+  mutate (residual = Response - mean(Response, na.rm = TRUE)) %>%
+  select(residual)
+
+qqPlot (non_native_residuals$residual)
+ 
+```
+
+
+Correlation assumptions
+
+```{r}
+#Histograms for Normality
+ggplot(data = var_sum, aes(x = anxiety_mean)) + 
+  geom_histogram() + theme_minimal() +
+  stat_bin(binwidth = 0.2) + 
+  xlab("Test Anxiety") + 
+  theme_classic() 
+  
+ggplot(data = var_sum, aes(x = peer_mean)) + 
+  geom_histogram() + 
+  theme_minimal() +
+  stat_bin(binwidth = 0.2) + 
+  xlab("Peer Learning") + 
+  theme_classic() 
+  
+#Q-Q Plots for Normality
+qqplot(y = var_sum$anxiety_mean, 
+       x = var_sum$peer_mean, 
+       xlab = "Peer Learning", 
+       ylab = "Test Anxiety") + 
+       theme_classic() 
+#linearity and homoscedasticity
+qqPlot(x = var_sum$anxiety_mean)
+qqPlot(x = var_sum$peer_mean)
+
+ggplot(data = var_sum, aes(y = anxiety_mean, x = peer_mean,)) +
+geom_point() +
+ylab("Test Anxiety") +
+xlab("Peer Learning") +
+theme_classic()
+
+
+```
+
+
+#### 10. Finally, you can conduct your statistical analyses. Don't forget to calculate effect sizes for the t-tests!
+
+T-test analysis
+
+```{r}
+
+#t-test
+t_result <- t.test(native_anxiety_mean~native,
+       paired = FALSE,
+       data = native_anxiety_level,
+       alternative = "greater") %>%
+  tidy ()
+
+
+t_test_group_min_sample_size <- pwr.t.test(d = .2,
+           power = .8,
+           sig.level = .05,
+           alternative = "greater",
+           type = "two.sample") %>%
+  pluck("n") %>%
+  ceiling() 
+  
+```
+Correlation analysis
+
+
+```{r}
+#Spearman correlation test
+
+Spearman_Correlation <-  cor.test(x = var_sum$anxiety_mean, 
+            y = var_sum$peer_mean,  
+            method = "spearman", 
+            alternative = "less") %>%
+            tidy()
+
+#Pearson Correlation test
+Pearson_Correlation <-cor.test(x = var_sum$anxiety_mean, 
+            y = var_sum$peer_mean,  
+            method = "pearson", 
+            alternative = "less") %>%
+            tidy()
+
+sample_size_r <- pwr.r.test(r = -.2,
+                sig.level = .05,
+                power = .8,
+                alternative = "less") %>%
+  pluck("n") %>%  
+  ceiling() 
+
+
+
+```
+
+
+
+
+
