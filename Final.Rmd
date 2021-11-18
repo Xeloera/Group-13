@@ -247,26 +247,19 @@ ggplot(var_sum, aes(x = peer_mean, fill = peer_mean)) +
   scale_x_discrete(name = "Mean Peer Score") +
   scale_y_continuous(name = "Number of participants")
 
-#The Violin-boxplot
-ggplot(var_sum, aes(x = anxiety_mean, 
-                        y = peer_mean, 
-                        fill = peer_mean)) +
-  geom_violin(trim = FALSE, 
-              show.legend = FALSE, 
-              alpha = .4) +
-  geom_boxplot(width = .2, 
-               show.legend = FALSE, 
-               alpha = .7)+
-  scale_x_discrete(name = "Mean Anxiety Score") +
-  scale_y_continuous(name = "Mean Peer Score")+
-  theme_minimal() +
-  scale_fill_viridis_d()
+
 
 var_sum %>%
   select(anxiety_mean, peer_mean) %>%
   pairs.panels(ellipses = FALSE, 
                lm = TRUE, 
                method = "pearson")
+
+ggplot(data = var_sum, aes(y = anxiety_mean, x = peer_mean,)) +
+geom_point() +
+ylab("Test Anxiety") +
+xlab("Peer Learning") +
+theme_classic()
 ```
 
 
@@ -301,20 +294,7 @@ qqPlot (non_native_residuals$residual)
 Correlation assumptions
 
 ```{r}
-#Histograms for Normality
-ggplot(data = var_sum, aes(x = anxiety_mean)) + 
-  geom_histogram() + theme_minimal() +
-  stat_bin(binwidth = 0.2) + 
-  xlab("Test Anxiety") + 
-  theme_classic() 
-  
-ggplot(data = var_sum, aes(x = peer_mean)) + 
-  geom_histogram() + 
-  theme_minimal() +
-  stat_bin(binwidth = 0.2) + 
-  xlab("Peer Learning") + 
-  theme_classic() 
-  
+
 #Q-Q Plots for Normality
 qqplot(y = var_sum$anxiety_mean, 
        x = var_sum$peer_mean, 
