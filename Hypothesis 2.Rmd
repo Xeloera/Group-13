@@ -221,19 +221,17 @@ t_result <- t.test(anxiety_mean~native,
        alternative = "greater") %>%
   tidy ()
 
-#Power_test_for_sample_size
+#t-test sample size testing
 library(pwr)
 library(tidyverse)
 
-
-group_min_sample_size <- pwr.t.test(d = .2,
+t_test_group_min_sample_size <- pwr.t.test(d = .2,
            power = .8,
            sig.level = .05,
            alternative = "greater",
            type = "two.sample") %>%
   pluck("n") %>%
   ceiling() 
-
   
 ```
 
@@ -241,9 +239,7 @@ group_min_sample_size <- pwr.t.test(d = .2,
 
 
 
-```{r}
 
-```
 
 
 
